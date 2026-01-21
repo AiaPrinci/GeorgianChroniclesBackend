@@ -1,44 +1,20 @@
 from flask import request, jsonify, send_from_directory
+from flask_login import login_user, current_user, login_required, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
 from models import User, Post, Comment, Like
 import os
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime
 import jwt
-from functools import wraps
 
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm", "mov", "mkv"}
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# ----------------------
-# Helper Functions
-# ----------------------
-
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get("Authorization")
-        if not token:
-            return jsonify({"error": "Token missing"}), 401
-        try:
-            token = token.split()[1]  # Expecting "Bearer <token>"
-            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user = User.query.get(data["user_id"])
-        except Exception as e:
-            print("JWT error:", e)
-            return jsonify({"error": "Invalid or expired token"}), 401
-        return f(current_user, *args, **kwargs)
-    return decorated
-
-# ----------------------
-# Auth Routes
-# ----------------------
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -92,47 +68,34 @@ def login():
     if not user or not check_password_hash(user.password, password):
         return jsonify({"error": "მონაცემები არასწორია"}), 401
 
-    # Generate JWT
-    token = jwt.encode({
-        "user_id": user.id,
-        "exp": datetime.utcnow() + timedelta(days=1)
-    }, app.config['SECRET_KEY'], algorithm="HS256")
+    login_user(user)
+    return jsonify({"message": "Login successful"}), 200
 
-    return jsonify({
-        "message": "Login successful",
-        "token": token,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "profile_image": user.profile_image,
-            "role": user.role,
-            "bio": user.bio
-        }
-    }), 200
+@app.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({"message": "Logged out successfully"})
 
 @app.route("/auth-status", methods=["GET"])
-@token_required
-def auth_status(current_user):
-    return jsonify({
-        "logged_in": True,
-        "user": {
-            "id": current_user.id,
-            "username": current_user.username,
-            "email": current_user.email,
-            "profile_image": current_user.profile_image,
-            "role": current_user.role,
-            "bio": current_user.bio
-        }
-    })
-
-# ----------------------
-# Post Routes
-# ----------------------
+def auth_status():
+    if current_user.is_authenticated:
+        return jsonify({
+            "logged_in": True,
+            "user": {
+                "id": current_user.id, 
+                "email": current_user.email,
+                "username": current_user.username,
+                "profile_image": current_user.profile_image,
+                "role": current_user.role,
+                "bio": current_user.bio
+            }
+        })
+    return jsonify({"logged_in": False})
 
 @app.route("/posts", methods=["POST"])
-@token_required
-def create_post(current_user):
+@login_required
+def create_post():
     cooldown_seconds = 10
     now = datetime.utcnow()
 
@@ -156,7 +119,9 @@ def create_post(current_user):
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         ext = filename.rsplit(".", 1)[1].lower()
+
         media_type = "video" if ext in {"mp4", "webm", "mov"} else "image"
+
         file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
 
     post = Post(
@@ -195,8 +160,8 @@ def uploaded_file(filename):
     return send_from_directory('static/uploads', filename)
 
 @app.route("/posts/<int:post_id>", methods=["DELETE"])
-@token_required
-def delete_post(current_user, post_id):
+@login_required
+def delete_post(post_id):
     post = Post.query.get_or_404(post_id)
 
     if post.user_id != current_user.id and current_user.role != "admin":
@@ -208,8 +173,8 @@ def delete_post(current_user, post_id):
     return jsonify({"message": "Post deleted"}), 200
 
 @app.route("/posts", methods=["GET"])
-@token_required
-def get_posts(current_user):
+@login_required
+def get_posts():
     posts = Post.query.order_by(Post.id.desc()).all()
 
     return jsonify([
@@ -236,18 +201,14 @@ def get_posts(current_user):
                 for c in post.comments
             ],
             "likes": len(post.likes),
-            "liked_by_me": any(l.user_id == current_user.id for l in post.likes)
+            "liked_by_me": any(l.user_id == current_user.id for l in post.likes) if current_user.is_authenticated else False
         }
         for post in posts
     ])
 
-# ----------------------
-# Comments, Likes, Users
-# ----------------------
-
 @app.route("/posts/<int:post_id>/comments", methods=["POST"])
-@token_required
-def add_comment(current_user, post_id):
+@login_required
+def add_comment(post_id):
     data = request.get_json()
     content = data.get("content")
 
@@ -276,8 +237,8 @@ def add_comment(current_user, post_id):
     }), 201
 
 @app.route("/comments/<int:comment_id>", methods=["DELETE"])
-@token_required
-def delete_comment(current_user, comment_id):
+@login_required
+def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
 
     if comment.user_id != current_user.id:
@@ -304,8 +265,8 @@ def get_comments(post_id):
     ])
 
 @app.route("/posts/<int:post_id>/like", methods=["POST"])
-@token_required
-def toggle_like(current_user, post_id):
+@login_required
+def toggle_like(post_id):
     post = Post.query.get_or_404(post_id)
 
     existing_like = Like.query.filter_by(
@@ -337,8 +298,8 @@ def get_likes(post_id):
     })
 
 @app.route("/users/<int:user_id>", methods=["GET"])
-@token_required
-def get_user_profile(current_user, user_id):
+@login_required
+def get_user_profile(user_id):
     user = User.query.get_or_404(user_id)
 
     return jsonify({
@@ -355,7 +316,7 @@ def get_user_profile(current_user, user_id):
                 "media": p.media,
                 "media_type": p.media_type,
                 "created_at": p.created_at,
-                "liked_by_me": any(l.user_id == current_user.id for l in p.likes),
+                "liked_by_me": any(l.user_id == current_user.id for l in p.likes) if current_user.is_authenticated else False,
                 "author": {
                     "id": user.id,
                     "username": user.username,
@@ -378,8 +339,8 @@ def get_user_profile(current_user, user_id):
     })
 
 @app.route("/users/<int:user_id>", methods=["PUT"])
-@token_required
-def update_profile(current_user, user_id):
+@login_required
+def update_profile(user_id):
     if current_user.id != user_id:
         return jsonify({"error": "Unauthorized"}), 403
 
@@ -408,8 +369,7 @@ def update_profile(current_user, user_id):
     return jsonify({"message": "Profile updated"})
 
 @app.route("/users", methods=["GET"])
-@token_required
-def get_users(current_user):
+def get_users():
     users = User.query.all()
     return jsonify([
         {
