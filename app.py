@@ -8,7 +8,7 @@ app.config['SECRET_KEY'] = "fallback-secret"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///site.db"
 
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SECURE"] = True
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 CORS(
