@@ -1,17 +1,18 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_login import LoginManager
+import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'princi'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+app.config['SECRET_KEY'] = "SECRET_KEY", "fallback-secret"
+app.config['SQLALCHEMY_DATABASE_URI'] = "DATABASE_URL", "sqlite:///site.db"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SECURE"] = True
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 CORS(
     app,
-    resources={r"/*": {"origins": "http://localhost:5173"}},
+    resources={r"/*": {"origins": ("FRONTEND_URL", "http://localhost:5173")}},
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -34,4 +35,4 @@ from routes import *
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(host="0.0.0.0")
