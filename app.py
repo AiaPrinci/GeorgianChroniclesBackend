@@ -7,20 +7,19 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = "fallback-secret"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///site.db"
 
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = False
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 CORS(
     app,
-    resources={r"/*": {"origins": ("FRONTEND_URL", "http://localhost:5173")}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     origins=[
         "http://localhost:5173",
-        "https://georgianchronicles.netlify.app/"
-    ]
+        "https://georgianchronicles.netlify.app"
+    ],
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
 from models import db, User
