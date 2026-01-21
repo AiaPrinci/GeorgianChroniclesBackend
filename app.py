@@ -37,6 +37,8 @@ def load_user(user_id):
 
 from routes import *
 
+print("Render is running this version")
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
