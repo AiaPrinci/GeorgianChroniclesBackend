@@ -26,7 +26,8 @@ CORS(
         r"/*": {
             "origins": [
                 "http://localhost:5173",
-                "https://georgianchronicles.netlify.app"
+                "https://georgianchronicles.netlify.app",
+                "https://georgianchroniclesfrontend.onrender.com"
             ]
         }
     }
