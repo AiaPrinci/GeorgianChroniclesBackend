@@ -248,10 +248,8 @@ def add_comment(post_id):
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
 
-    if comment.user_id != current_user.id and comment.user_role != "admin":
+    if comment.user_id != current_user.id and current_user.role != "admin":
         return jsonify({"error": "You are not allowed to delete this comment"}), 403
-    else:
-        return jsonify({"success": "You are allowed to delete this comment"}), 200
 
     db.session.delete(comment)
     db.session.commit()
