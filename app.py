@@ -1,28 +1,38 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_login import LoginManager
+from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = "fallback-secret"
-app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///site.db"
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = True
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "fallback-secret")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///site.db")
+
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+)
+
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 CORS(
     app,
     supports_credentials=True,
-    origins=[
-        "http://localhost:5173",
-        "https://georgianchronicles.netlify.app"
-    ],
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:5173",
+                "https://georgianchronicles.netlify.app"
+            ]
+        }
+    }
 )
 
 from models import db, User
-
 db.init_app(app)
 
 login_manager = LoginManager()
