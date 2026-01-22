@@ -57,25 +57,31 @@ def register():
 
 @app.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True) or request.form
+
     if not data:
         return jsonify({"error": "No data sent"}), 400
 
-    email = data.get("email")
-    password = data.get("password")
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
 
     user = User.query.filter_by(email=email).first()
+
     if not user or not check_password_hash(user.password, password):
         return jsonify({"error": "მონაცემები არასწორია"}), 401
 
     login_user(user)
     return jsonify({"message": "Login successful"}), 200
 
+
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
-    return jsonify({"message": "Logged out successfully"})
+    return jsonify({"message": "Logged out successfully"}), 200
 
 @app.route("/auth-status", methods=["GET"])
 def auth_status():
